@@ -21,6 +21,9 @@ const EnvSchema = z.object({
     .default(10 * 1024 * 1024),
   RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(10),
   MAX_CONCURRENT_REDACTIONS: z.coerce.number().int().positive().default(2),
+  // Where the redaction counter lives. Defaults to ./data relative to the
+  // working directory; set this to pin it somewhere explicit.
+  DATA_DIR: z.string().optional(),
 });
 
 export const env = EnvSchema.parse(process.env);

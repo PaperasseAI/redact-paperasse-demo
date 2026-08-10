@@ -8,3 +8,7 @@ build/
 # Deployment specifics (server IPs, paths) stay out of this public repo —
 # kept locally only, never committed.
 deploy.sh
+
+# Prebuilt platform binaries staged for deployment — large, and they belong
+# on npm, not in this repo.
+vendor/
