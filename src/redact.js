@@ -1,4 +1,10 @@
-import { redactImage, redactPdf, redactText } from 'redact-paperasse';
+import {
+  redactImage,
+  redactImageText,
+  redactPdf,
+  redactPdfText,
+  redactText,
+} from 'redact-paperasse';
 
 // The 6 recognizers currently registered in
 // redact-paperasse/crates/recognizers/src/lib.rs::default_registry() — the
@@ -26,9 +32,40 @@ export const SUPPORTED_MIME_TYPES = new Set([
  * result is the HTTP response body for the same request that uploaded the
  * file, so "delete after download" is true by construction rather than a
  * cleanup step working against a file that was ever written.
+ *
+ * `markdown: false` (the default) returns the same shape that went in — a
+ * redacted image stays an image with black boxes drawn on it, a PDF stays a
+ * PDF. `markdown: true` returns redacted markdown text instead, whatever
+ * the input was: for an image or PDF that means OCR the page, find PII in
+ * the OCR'd text, and hand back the redacted text with no pixel work at
+ * all (`redactImageText`/`redactPdfText`) — which is both cheaper and what
+ * you actually want when the destination is an LLM rather than a human
+ * looking at a document.
  */
-export async function redactUpload(bytes, mimeType, entities) {
+export async function redactUpload(bytes, mimeType, entities, markdown = false) {
   const options = entities && entities.length > 0 ? { entities } : undefined;
+
+  if (markdown) {
+    let text;
+    switch (mimeType) {
+      case 'text/plain':
+        text = await redactText(Buffer.from(bytes).toString('utf8'), {
+          ...options,
+          markdown: true,
+        });
+        break;
+      case 'image/png':
+      case 'image/jpeg':
+        text = await redactImageText(Buffer.from(bytes), options);
+        break;
+      case 'application/pdf':
+        text = await redactPdfText(Buffer.from(bytes), options);
+        break;
+      default:
+        throw new Error(`unsupported mime type: ${mimeType}`);
+    }
+    return { bytes: Buffer.from(text, 'utf8'), mimeType: 'text/markdown', extension: 'md' };
+  }
 
   switch (mimeType) {
     case 'text/plain': {

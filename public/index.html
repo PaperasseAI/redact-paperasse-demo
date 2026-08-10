@@ -113,6 +113,23 @@
     width: 100%;
   }
   button:disabled { opacity: 0.6; cursor: default; }
+  .switch-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .switch-row input { margin-top: 3px; }
+  .switch-row strong { display: block; font-weight: 600; }
+  .switch-row em {
+    display: block;
+    margin-top: 3px;
+    font-family: var(--font-body);
+    font-style: italic;
+    color: var(--color-text-muted);
+    line-height: 1.45;
+  }
   .status {
     margin-top: 16px;
     font-size: 14px;
@@ -157,6 +174,17 @@
       <div class="field">
         <label class="title">Redact these entity types</label>
         <div class="entities" id="entities"></div>
+      </div>
+      <div class="field">
+        <label class="switch-row">
+          <input type="checkbox" id="markdown" />
+          <span>
+            <strong>Return markdown instead of the original format</strong>
+            <em>For an image or PDF this OCRs the page and hands back redacted
+            text — no pixel step. Leave it off to get the same kind of file
+            you uploaded, with the PII blacked out.</em>
+          </span>
+        </label>
       </div>
       <button type="submit" id="submit-btn">Redact file</button>
       <div class="status" id="status"></div>
@@ -221,6 +249,7 @@
     const body = new FormData();
     body.append('file', file);
     body.append('entities', JSON.stringify(selected));
+    body.append('markdown', document.getElementById('markdown').checked ? 'true' : 'false');
 
     submitBtn.disabled = true;
     statusEl.textContent = 'Redacting…';

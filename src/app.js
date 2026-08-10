@@ -65,14 +65,20 @@ export function createApp() {
       }
     }
 
+    const markdown = formData.get('markdown') === 'true';
     const bytes = new Uint8Array(await file.arrayBuffer());
 
     try {
       const result = await withConcurrencyLimit(env.MAX_CONCURRENT_REDACTIONS, () =>
-        redactUpload(bytes, file.type, entities),
+        redactUpload(bytes, file.type, entities, markdown),
       );
       incrementCount();
-      const safeName = (file.name || 'output').replace(/[^\w.\-]/g, '_');
+      let safeName = (file.name || 'output').replace(/[^\w.\-]/g, '_');
+      // Markdown output is a different file than what was uploaded — swap
+      // the extension so the download isn't a .jpeg full of text.
+      if (result.extension) {
+        safeName = `${safeName.replace(/\.[^.]+$/, '')}.${result.extension}`;
+      }
       return new Response(result.bytes, {
         headers: {
           'Content-Type': result.mimeType,
