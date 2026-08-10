@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>redact-paperasse — PII redaction demo</title>
+<meta name="description" content="Upload text, an image, or a PDF and get a redacted copy back, powered by the open-source redact-paperasse library." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --color-primary: #2b3cb0;
+    --color-accent: #d6453d;
+    --color-bg: #faf7f2;
+    --color-surface: #ffffff;
+    --color-surface-sand: #f3ede2;
+    --color-border: #e7e1d6;
+    --color-text: #1c1c2e;
+    --color-text-muted: #5a5a6e;
+    --font-ui: 'Geist', system-ui, sans-serif;
+    --font-body: 'Spectral', Georgia, serif;
+    --font-mono: 'Geist Mono', ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-ui);
+  }
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+  .tricolor {
+    display: flex;
+    gap: 6px;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 32px;
+  }
+  .tricolor span { flex: 1; }
+  .tricolor span:nth-child(1) { background: var(--color-primary); }
+  .tricolor span:nth-child(2) { background: var(--color-surface-sand); }
+  .tricolor span:nth-child(3) { background: var(--color-accent); }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 0 0 8px;
+  }
+  p.lede {
+    font-family: var(--font-body);
+    color: var(--color-text-muted);
+    font-size: 16px;
+    line-height: 1.5;
+    margin: 0 0 32px;
+  }
+  code {
+    font-family: var(--font-mono);
+    background: var(--color-surface-sand);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+  }
+  .card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 24px;
+  }
+  .field { margin-bottom: 20px; }
+  .field label.title {
+    display: block;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+  }
+  input[type='file'] {
+    display: block;
+    width: 100%;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    padding: 10px;
+    border: 1px dashed var(--color-border);
+    border-radius: 8px;
+    background: var(--color-surface-sand);
+  }
+  .entities {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+  }
+  .entities label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: 15px;
+    color: #fff;
+    background: var(--color-primary);
+    border: none;
+    border-radius: 8px;
+    padding: 12px 20px;
+    cursor: pointer;
+    width: 100%;
+  }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .status {
+    margin-top: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .status.error { color: var(--color-accent); }
+  .status.ok { color: #1a7f4e; }
+  .counter {
+    margin-top: 32px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--color-text-muted);
+    display: none;
+  }
+  .counter.visible { display: block; }
+  footer {
+    margin-top: 48px;
+    font-size: 13px;
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+  footer a { color: var(--color-primary); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tricolor"><span></span><span></span><span></span></div>
+  <h1>redact-paperasse</h1>
+  <p class="lede">
+    Upload plain text, a PNG/JPEG image, or a PDF. Pick which kinds of PII to
+    redact, and get a redacted copy back — processed entirely in this
+    request, nothing is stored on the server.
+  </p>
+
+  <div class="card">
+    <form id="redact-form">
+      <div class="field">
+        <label class="title" for="file">File</label>
+        <input type="file" id="file" name="file" accept=".txt,text/plain,image/png,image/jpeg,application/pdf" required />
+      </div>
+      <div class="field">
+        <label class="title">Redact these entity types</label>
+        <div class="entities" id="entities"></div>
+      </div>
+      <button type="submit" id="submit-btn">Redact file</button>
+      <div class="status" id="status"></div>
+    </form>
+  </div>
+
+  <div class="counter" id="counter"></div>
+
+  <footer>
+    Built on <a href="https://github.com/PaperasseAI/redact-paperasse" target="_blank" rel="noopener">redact-paperasse</a>,
+    an open-source PII redaction library (<code>cargo install redact-paperasse-cli</code> / <code>pip install redact-paperasse</code>).
+  </footer>
+</div>
+
+<script>
+  const entitiesEl = document.getElementById('entities');
+  const form = document.getElementById('redact-form');
+  const statusEl = document.getElementById('status');
+  const submitBtn = document.getElementById('submit-btn');
+  const counterEl = document.getElementById('counter');
+
+  async function loadEntities() {
+    const res = await fetch('/entities');
+    const { entities } = await res.json();
+    entitiesEl.innerHTML = entities
+      .map(
+        (e) => `
+      <label>
+        <input type="checkbox" name="entity" value="${e.id}" checked />
+        ${e.label}
+      </label>`,
+      )
+      .join('');
+  }
+
+  async function loadStats() {
+    try {
+      const res = await fetch('/stats');
+      const { count } = await res.json();
+      if (count >= 1000) {
+        counterEl.textContent = `${count.toLocaleString()} files redacted so far`;
+        counterEl.classList.add('visible');
+      }
+    } catch {
+      // stats endpoint is best-effort — the form works regardless
+    }
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    statusEl.textContent = '';
+    statusEl.className = 'status';
+
+    const fileInput = document.getElementById('file');
+    const file = fileInput.files[0];
+    if (!file) return;
+
+    const selected = Array.from(
+      entitiesEl.querySelectorAll('input[name="entity"]:checked'),
+    ).map((el) => el.value);
+
+    const body = new FormData();
+    body.append('file', file);
+    body.append('entities', JSON.stringify(selected));
+
+    submitBtn.disabled = true;
+    statusEl.textContent = 'Redacting…';
+
+    try {
+      const res = await fetch('/redact', { method: 'POST', body });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
+        statusEl.textContent = error;
+        statusEl.className = 'status error';
+        return;
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get('Content-Disposition') || '';
+      const match = disposition.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : 'redacted-output';
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+
+      statusEl.textContent = 'Done — download started.';
+      statusEl.className = 'status ok';
+      loadStats();
+    } catch (err) {
+      statusEl.textContent = 'Something went wrong. Please try again.';
+      statusEl.className = 'status error';
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+
+  loadEntities();
+  loadStats();
+</script>
+</body>
+</html>
