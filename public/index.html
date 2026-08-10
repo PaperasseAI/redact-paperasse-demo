@@ -3,289 +3,483 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>redact-paperasse — PII redaction demo</title>
-<meta name="description" content="Upload text, an image, or a PDF and get a redacted copy back, powered by the open-source redact-paperasse library." />
+<title>redact-paperasse — strip PII from documents</title>
+<meta name="description" content="Drop in text, an image, or a PDF and get a redacted copy back. Open source, runs in-process, nothing stored." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
 <style>
   :root {
-    --color-primary: #2b3cb0;
-    --color-accent: #d6453d;
-    --color-bg: #faf7f2;
-    --color-surface: #ffffff;
-    --color-surface-sand: #f3ede2;
-    --color-border: #e7e1d6;
-    --color-text: #1c1c2e;
-    --color-text-muted: #5a5a6e;
-    --font-ui: 'Geist', system-ui, sans-serif;
-    --font-body: 'Spectral', Georgia, serif;
-    --font-mono: 'Geist Mono', ui-monospace, monospace;
+    --primary: #2b3cb0;
+    --primary-dark: #22309090;
+    --accent: #d6453d;
+    --bg: #faf7f2;
+    --surface: #ffffff;
+    --sand: #f3ede2;
+    --border: #e7e1d6;
+    --ink: #1c1c2e;
+    --muted: #5a5a6e;
+    --ok: #1a7f4e;
+    --ui: 'Geist', system-ui, sans-serif;
+    --body: 'Spectral', Georgia, serif;
+    --mono: 'Geist Mono', ui-monospace, monospace;
+    --r: 12px;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--color-bg);
-    color: var(--color-text);
-    font-family: var(--font-ui);
-  }
-  .wrap {
-    max-width: 640px;
-    margin: 0 auto;
-    padding: 48px 20px 80px;
-  }
-  .tricolor {
-    display: flex;
-    gap: 6px;
-    height: 6px;
-    border-radius: 3px;
-    overflow: hidden;
-    margin-bottom: 32px;
-  }
-  .tricolor span { flex: 1; }
-  .tricolor span:nth-child(1) { background: var(--color-primary); }
-  .tricolor span:nth-child(2) { background: var(--color-surface-sand); }
-  .tricolor span:nth-child(3) { background: var(--color-accent); }
-  h1 {
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0 0 8px;
-  }
-  p.lede {
-    font-family: var(--font-body);
-    color: var(--color-text-muted);
-    font-size: 16px;
-    line-height: 1.5;
-    margin: 0 0 32px;
-  }
-  code {
-    font-family: var(--font-mono);
-    background: var(--color-surface-sand);
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 0.9em;
-  }
-  .card {
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 12px;
-    padding: 24px;
-  }
-  .field { margin-bottom: 20px; }
-  .field label.title {
+  /* .filerow sets display:flex, which out-specifies the UA [hidden] rule --
+     without this the empty file row leaks through over the drop zone. */
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--ui); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  .tricolor { display: flex; gap: 6px; height: 6px; border-radius: 3px; margin-bottom: 28px; }
+  .tricolor span { flex: 1; border-radius: 3px; }
+  .tricolor span:nth-child(1) { background: var(--primary); }
+  .tricolor span:nth-child(2) { background: var(--sand); }
+  .tricolor span:nth-child(3) { background: var(--accent); }
+
+  header h1 { font-size: 34px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.02em; }
+  header p { font-family: var(--body); color: var(--muted); font-size: 17px; line-height: 1.55; margin: 0 0 12px; max-width: 60ch; }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 32px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--sand); color: var(--muted); border: 1px solid var(--border); }
+  .badge.green { background: #eaf6f0; color: var(--ok); border-color: #cbe8db; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 24px; }
+
+  /* ---- drop zone ---- */
+  .drop {
+    /* A <label> is display:inline by default; with block children its
+       padded background fragments into stray boxes down the left edge. */
     display: block;
-    font-weight: 600;
-    font-size: 14px;
-    margin-bottom: 8px;
+    position: relative; border: 2px dashed var(--border); border-radius: var(--r);
+    background: var(--sand); padding: 34px 20px; text-align: center; cursor: pointer;
+    transition: border-color .18s ease, background .18s ease, transform .18s ease;
   }
-  input[type='file'] {
-    display: block;
-    width: 100%;
-    font-family: var(--font-ui);
-    font-size: 14px;
-    padding: 10px;
-    border: 1px dashed var(--color-border);
-    border-radius: 8px;
-    background: var(--color-surface-sand);
+  .drop:hover { border-color: #cdc4b4; }
+  .drop.over { border-color: var(--primary); background: #eef0fb; transform: scale(1.01); }
+  .drop.has-file { border-style: solid; border-color: #cbe8db; background: #f4fbf7; text-align: left; }
+  .drop input[type=file] { display: none; }
+  .drop-icon { width: 40px; height: 40px; margin: 0 auto 12px; display: block; color: var(--primary); }
+  .drop-title { font-weight: 600; font-size: 15px; }
+  .drop-sub { font-family: var(--body); color: var(--muted); font-size: 14px; margin-top: 6px; }
+  .filerow { display: flex; align-items: center; gap: 12px; }
+  .filepill { width: 38px; height: 38px; border-radius: 9px; background: var(--primary); color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; font-family: var(--mono); flex: none; }
+  .filemeta { min-width: 0; flex: 1; }
+  .filename { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .filesize { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .clear { background: none; border: none; color: var(--muted); font-size: 20px; line-height: 1; cursor: pointer; padding: 4px 8px; width: auto; }
+  .clear:hover { color: var(--accent); }
+
+  .section-label { font-weight: 600; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 26px 0 10px; }
+
+  /* ---- entity chips ---- */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { position: relative; }
+  .chip input { position: absolute; opacity: 0; pointer-events: none; }
+  .chip span {
+    display: inline-block; padding: 7px 13px; border-radius: 999px; font-size: 13px; font-weight: 500;
+    border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer;
+    transition: all .15s ease; user-select: none;
   }
-  .entities {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 16px;
+  .chip input:checked + span { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .chip input:focus-visible + span { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .chip-actions { margin-top: 10px; font-size: 13px; }
+  .linkbtn { background: none; border: none; color: var(--primary); font-size: 13px; font-family: var(--ui); cursor: pointer; padding: 0; width: auto; text-decoration: underline; }
+
+  /* ---- toggle ---- */
+  .toggle-row { display: flex; gap: 14px; align-items: flex-start; padding: 16px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; }
+  .toggle-row input { position: absolute; opacity: 0; pointer-events: none; }
+  .track { width: 42px; height: 24px; border-radius: 999px; background: #d6d0c4; position: relative; flex: none; transition: background .18s ease; margin-top: 2px; }
+  .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .18s ease; }
+  .toggle-row input:checked ~ .track { background: var(--primary); }
+  .toggle-row input:checked ~ .track::after { transform: translateX(18px); }
+  .toggle-copy strong { display: block; font-size: 14px; font-weight: 600; }
+  .toggle-copy em { display: block; font-family: var(--body); font-style: italic; color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-top: 4px; }
+
+  button.primary {
+    width: 100%; margin-top: 22px; font-family: var(--ui); font-weight: 600; font-size: 15px; color: #fff;
+    background: var(--primary); border: none; border-radius: 10px; padding: 14px 20px; cursor: pointer;
+    transition: opacity .15s ease, transform .1s ease;
   }
-  .entities label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    cursor: pointer;
+  button.primary:hover:not(:disabled) { opacity: .92; }
+  button.primary:active:not(:disabled) { transform: translateY(1px); }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+
+  /* ---- scanning animation ---- */
+  .scanner { margin-top: 22px; border: 1px solid var(--border); border-radius: 10px; padding: 22px; background: var(--surface); display: none; }
+  .scanner.on { display: block; }
+  .scan-window { position: relative; height: 96px; border-radius: 8px; background: var(--sand); overflow: hidden; }
+  .scan-lines { position: absolute; inset: 14px 18px; display: flex; flex-direction: column; gap: 9px; }
+  .scan-lines i { display: block; height: 9px; border-radius: 3px; background: #ded6c8; }
+  .scan-lines i:nth-child(2) { width: 78%; }
+  .scan-lines i:nth-child(3) { width: 90%; }
+  .scan-lines i:nth-child(4) { width: 62%; }
+  .scan-lines i.hit { background: var(--ink); }
+  .scan-beam {
+    position: absolute; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    box-shadow: 0 0 14px 3px rgba(43,60,176,.5);
+    animation: sweep 1.25s cubic-bezier(.45,0,.55,1) infinite;
   }
-  button {
-    font-family: var(--font-ui);
-    font-weight: 600;
-    font-size: 15px;
-    color: #fff;
-    background: var(--color-primary);
-    border: none;
-    border-radius: 8px;
-    padding: 12px 20px;
-    cursor: pointer;
-    width: 100%;
-  }
-  button:disabled { opacity: 0.6; cursor: default; }
-  .switch-row {
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    cursor: pointer;
-    font-size: 14px;
-  }
-  .switch-row input { margin-top: 3px; }
-  .switch-row strong { display: block; font-weight: 600; }
-  .switch-row em {
-    display: block;
-    margin-top: 3px;
-    font-family: var(--font-body);
-    font-style: italic;
-    color: var(--color-text-muted);
-    line-height: 1.45;
-  }
-  .status {
-    margin-top: 16px;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-  .status.error { color: var(--color-accent); }
-  .status.ok { color: #1a7f4e; }
-  .counter {
-    margin-top: 32px;
-    text-align: center;
-    font-family: var(--font-mono);
-    font-size: 13px;
-    color: var(--color-text-muted);
-    display: none;
-  }
-  .counter.visible { display: block; }
-  footer {
-    margin-top: 48px;
-    font-size: 13px;
-    color: var(--color-text-muted);
-    text-align: center;
-  }
-  footer a { color: var(--color-primary); }
+  @keyframes sweep { 0% { top: 0; } 50% { top: calc(100% - 3px); } 100% { top: 0; } }
+  .scan-status { margin-top: 14px; font-size: 13.5px; color: var(--muted); font-family: var(--mono); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--primary); animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
+  /* ---- result ---- */
+  .result { margin-top: 22px; border: 1px solid #cbe8db; background: #f4fbf7; border-radius: 10px; padding: 20px; display: none; }
+  .result.on { display: block; animation: rise .28s ease; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .result h3 { margin: 0 0 4px; font-size: 15px; color: var(--ok); }
+  .result p { margin: 0 0 14px; font-family: var(--body); font-size: 14px; color: var(--muted); }
+  .result .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-sm { font-family: var(--ui); font-weight: 600; font-size: 13.5px; border-radius: 8px; padding: 10px 16px; cursor: pointer; border: 1px solid transparent; width: auto; }
+  .btn-sm.solid { background: var(--ok); color: #fff; }
+  .btn-sm.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+  .err { margin-top: 16px; font-size: 14px; color: var(--accent); display: none; }
+  .err.on { display: block; }
+
+  /* ---- code tabs ---- */
+  .code-section { margin-top: 56px; }
+  .code-section h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -0.01em; }
+  .code-section > p { font-family: var(--body); color: var(--muted); margin: 0 0 18px; font-size: 15.5px; line-height: 1.55; }
+  .tabs { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--border); }
+  .tab { background: none; border: none; padding: 10px 14px; font-family: var(--ui); font-size: 13.5px; font-weight: 600; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; width: auto; }
+  .tab[aria-selected="true"] { color: var(--primary); border-bottom-color: var(--primary); }
+  pre { margin: 0; background: #14161f; color: #e6e9f0; border-radius: 0 0 var(--r) var(--r); padding: 20px; overflow-x: auto; font-family: var(--mono); font-size: 13px; line-height: 1.65; }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .panel { display: none; }
+  .panel.on { display: block; }
+  .tok-c { color: #7d8799; }
+  .tok-s { color: #9ae6b4; }
+  .tok-k { color: #93a5ff; }
+  .tok-f { color: #ffd08a; }
+  .note { font-family: var(--body); font-size: 13.5px; color: var(--muted); margin-top: 10px; font-style: italic; }
+
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--border); font-size: 13px; color: var(--muted); text-align: center; line-height: 1.7; }
+  footer a { color: var(--primary); }
+  .counter { font-family: var(--mono); font-size: 12.5px; color: var(--muted); margin-top: 8px; display: none; }
+  .counter.on { display: block; }
+  @media (max-width: 560px) { header h1 { font-size: 27px; } .wrap { padding: 28px 16px 56px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="tricolor"><span></span><span></span><span></span></div>
-  <h1>redact-paperasse</h1>
-  <p class="lede">
-    Upload plain text, a PNG/JPEG image, or a PDF. Pick which kinds of PII to
-    redact, and get a redacted copy back — processed entirely in this
-    request, nothing is stored on the server.
-  </p>
+
+  <header>
+    <h1>Strip personal data out of documents</h1>
+    <p>
+      Drop in plain text, a photo, or a PDF. Pick what counts as sensitive, and get
+      a redacted copy back — black boxes burned into the pixels, not a highlight
+      layer someone can peel off.
+    </p>
+    <div class="badges">
+      <span class="badge green">Nothing stored</span>
+      <span class="badge">Redacted in memory, in one request</span>
+      <span class="badge">Open source · MIT</span>
+      <span class="badge">Free, no account</span>
+    </div>
+  </header>
 
   <div class="card">
-    <form id="redact-form">
-      <div class="field">
-        <label class="title" for="file">File</label>
-        <input type="file" id="file" name="file" accept=".txt,text/plain,image/png,image/jpeg,application/pdf" required />
+    <form id="form">
+      <label class="drop" id="drop" for="file">
+        <input type="file" id="file" accept=".txt,text/plain,image/png,image/jpeg,application/pdf" />
+        <div id="drop-empty">
+          <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <path d="M7 10l5-5 5 5" /><path d="M12 5v13" />
+          </svg>
+          <div class="drop-title">Drop a file here, or click to choose</div>
+          <div class="drop-sub">Plain text, PNG, JPEG, or PDF · up to 10&nbsp;MB</div>
+        </div>
+        <div class="filerow" id="drop-filled" hidden>
+          <div class="filepill" id="file-ext">FILE</div>
+          <div class="filemeta">
+            <div class="filename" id="file-name"></div>
+            <div class="filesize" id="file-size"></div>
+          </div>
+          <button type="button" class="clear" id="clear" title="Remove file" aria-label="Remove file">&times;</button>
+        </div>
+      </label>
+
+      <div class="section-label">What should be redacted</div>
+      <div class="chips" id="chips"></div>
+      <div class="chip-actions">
+        <button type="button" class="linkbtn" id="sel-all">Select all</button> ·
+        <button type="button" class="linkbtn" id="sel-none">Clear</button>
       </div>
-      <div class="field">
-        <label class="title">Redact these entity types</label>
-        <div class="entities" id="entities"></div>
-      </div>
-      <div class="field">
-        <label class="switch-row">
-          <input type="checkbox" id="markdown" />
-          <span>
-            <strong>Return markdown instead of the original format</strong>
-            <em>For an image or PDF this OCRs the page and hands back redacted
-            text — no pixel step. Leave it off to get the same kind of file
-            you uploaded, with the PII blacked out.</em>
-          </span>
-        </label>
-      </div>
-      <button type="submit" id="submit-btn">Redact file</button>
-      <div class="status" id="status"></div>
+
+      <div class="section-label">Output</div>
+      <label class="toggle-row">
+        <input type="checkbox" id="markdown" />
+        <span class="track"></span>
+        <span class="toggle-copy">
+          <strong>Return markdown instead of the original format</strong>
+          <em>For an image or PDF this reads the page and hands back redacted text —
+          no pixel step, and cheaper. Leave it off to get back the same kind of file
+          you put in, with the sensitive parts blacked out.</em>
+        </span>
+      </label>
+
+      <button type="submit" class="primary" id="go" disabled>Redact file</button>
+      <div class="err" id="err"></div>
     </form>
+
+    <div class="scanner" id="scanner" aria-live="polite">
+      <div class="scan-window">
+        <div class="scan-lines">
+          <i></i><i></i><i class="hit"></i><i></i>
+        </div>
+        <div class="scan-beam"></div>
+      </div>
+      <div class="scan-status"><span class="dot"></span><span id="scan-text">Reading the page…</span></div>
+    </div>
+
+    <div class="result" id="result">
+      <h3>Redacted</h3>
+      <p id="result-note">Your download should have started automatically.</p>
+      <div class="row">
+        <button type="button" class="btn-sm solid" id="dl">Download again</button>
+        <button type="button" class="btn-sm ghost" id="again">Redact another file</button>
+      </div>
+    </div>
   </div>
 
-  <div class="counter" id="counter"></div>
+  <section class="code-section">
+    <h2>Use it in your own code</h2>
+    <p>
+      The demo above is a thin wrapper around the same library you can install. One
+      Rust core, native bindings for each language — no REST hop, no server to run.
+    </p>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-p="cli" aria-selected="true">CLI</button>
+      <button class="tab" role="tab" data-p="node" aria-selected="false">Node.js</button>
+      <button class="tab" role="tab" data-p="py" aria-selected="false">Python</button>
+      <button class="tab" role="tab" data-p="rust" aria-selected="false">Rust</button>
+      <button class="tab" role="tab" data-p="wasm" aria-selected="false">Browser</button>
+    </div>
+
+    <div class="panel on" id="p-cli"><pre><code><span class="tok-c"># install</span>
+cargo install redact-paperasse-cli
+
+<span class="tok-c"># image in, redacted image out (same format)</span>
+redactpapr letter.jpg --output letter.redacted.jpg
+
+<span class="tok-c"># only redact French social security numbers</span>
+redactpapr letter.jpg --entities FR_NIR --output out.jpg
+
+<span class="tok-c"># OCR a scan and get redacted markdown instead of pixels</span>
+redactpapr scan.pdf --format markdown
+
+<span class="tok-c"># see what was found, without the matched text itself</span>
+redactpapr letter.jpg --report --output out.jpg</code></pre></div>
+
+    <div class="panel" id="p-node"><pre><code><span class="tok-c">// npm install redact-paperasse</span>
+<span class="tok-k">import</span> {
+  redactText, redactImage, redactPdf,
+  redactImageText, redactPdfText,
+} <span class="tok-k">from</span> <span class="tok-s">'redact-paperasse'</span>;
+
+<span class="tok-c">// text in, text out</span>
+<span class="tok-k">const</span> clean = <span class="tok-k">await</span> <span class="tok-f">redactText</span>(raw, { markdown: <span class="tok-k">false</span> });
+
+<span class="tok-c">// image in, redacted image bytes out</span>
+<span class="tok-k">const</span> png = <span class="tok-k">await</span> <span class="tok-f">redactImage</span>(buf, { entities: [<span class="tok-s">'FR_NIR'</span>, <span class="tok-s">'EMAIL_ADDRESS'</span>] });
+
+<span class="tok-c">// same image, but give me the OCR'd redacted text instead</span>
+<span class="tok-k">const</span> md = <span class="tok-k">await</span> <span class="tok-f">redactImageText</span>(buf);
+
+<span class="tok-c">// PDFs work both ways too</span>
+<span class="tok-k">const</span> pdf = <span class="tok-k">await</span> <span class="tok-f">redactPdf</span>(pdfBuf);
+<span class="tok-k">const</span> pdfMd = <span class="tok-k">await</span> <span class="tok-f">redactPdfText</span>(pdfBuf, { score_threshold: <span class="tok-s">0.9</span> });</code></pre></div>
+
+    <div class="panel" id="p-py"><pre><code><span class="tok-c"># pip install redact-paperasse</span>
+<span class="tok-k">import</span> asyncio
+<span class="tok-k">import</span> redact_paperasse <span class="tok-k">as</span> rp
+
+<span class="tok-k">async def</span> <span class="tok-f">main</span>():
+    <span class="tok-c"># text in, text out</span>
+    clean = <span class="tok-k">await</span> rp.<span class="tok-f">redact_text</span>(raw, markdown=<span class="tok-k">False</span>)
+
+    <span class="tok-c"># image in, redacted image bytes out</span>
+    data = <span class="tok-k">open</span>(<span class="tok-s">"letter.jpg"</span>, <span class="tok-s">"rb"</span>).<span class="tok-f">read</span>()
+    png = <span class="tok-k">await</span> rp.<span class="tok-f">redact_image</span>(data, entities=[<span class="tok-s">"FR_NIR"</span>])
+
+    <span class="tok-c"># or the OCR'd redacted text, skipping the pixel step</span>
+    md = <span class="tok-k">await</span> rp.<span class="tok-f">redact_image_text</span>(data)
+
+    <span class="tok-c"># PDFs, same two shapes</span>
+    pdf = <span class="tok-k">await</span> rp.<span class="tok-f">redact_pdf</span>(pdf_bytes)
+    pdf_md = <span class="tok-k">await</span> rp.<span class="tok-f">redact_pdf_text</span>(pdf_bytes)
+
+asyncio.<span class="tok-f">run</span>(<span class="tok-f">main</span>())</code></pre></div>
+
+    <div class="panel" id="p-rust"><pre><code><span class="tok-c">// cargo add redact-paperasse-core</span>
+<span class="tok-k">use</span> redact_paperasse_core::{Engine, Input, OutputFormat};
+
+<span class="tok-k">let</span> engine = Engine::<span class="tok-f">default</span>();
+
+<span class="tok-c">// image in, redacted image bytes out</span>
+<span class="tok-k">let</span> out = engine
+    .<span class="tok-f">process</span>(Input::<span class="tok-f">Image</span>(bytes), OutputFormat::Native, <span class="tok-k">None</span>, <span class="tok-k">None</span>)
+    .<span class="tok-k">await</span>?;
+std::fs::<span class="tok-f">write</span>(<span class="tok-s">"redacted.jpg"</span>, out.bytes.<span class="tok-f">unwrap</span>())?;
+
+<span class="tok-c">// only certain types, above a confidence floor</span>
+<span class="tok-k">let</span> only = [<span class="tok-s">"FR_NIR"</span>.<span class="tok-f">to_string</span>()];
+<span class="tok-k">let</span> out = engine
+    .<span class="tok-f">process</span>(Input::<span class="tok-f">Text</span>(s), OutputFormat::Markdown, <span class="tok-f">Some</span>(&only), <span class="tok-f">Some</span>(0.9))
+    .<span class="tok-k">await</span>?;
+<span class="tok-f">println!</span>(<span class="tok-s">"{}"</span>, out.markdown.<span class="tok-f">unwrap</span>());</code></pre></div>
+
+    <div class="panel" id="p-wasm"><pre><code><span class="tok-c">// Built from source with wasm-pack — see bindings/wasm in the repo.</span>
+<span class="tok-c">// Runs entirely client-side: the file never leaves the browser.</span>
+<span class="tok-k">import</span> init, { redactText, redactImage, redactImageText }
+  <span class="tok-k">from</span> <span class="tok-s">'./pkg/redact_paperasse_wasm.js'</span>;
+
+<span class="tok-k">await</span> <span class="tok-f">init</span>();
+
+<span class="tok-k">const</span> clean = <span class="tok-k">await</span> <span class="tok-f">redactText</span>(raw, <span class="tok-k">false</span>, [<span class="tok-s">'EMAIL_ADDRESS'</span>], <span class="tok-k">null</span>);</code></pre>
+      <p class="note">No <code>redactPdf</code> in the browser build: the PDF-to-raster
+      step doesn't exist for wasm32 upstream. Text redaction is the part that
+      genuinely benefits from running client-side anyway.</p>
+    </div>
+  </section>
 
   <footer>
-    Built on <a href="https://github.com/PaperasseAI/redact-paperasse" target="_blank" rel="noopener">redact-paperasse</a>,
-    an open-source PII redaction library (<code>cargo install redact-paperasse-cli</code> / <code>pip install redact-paperasse</code>).
+    Built on <a href="https://github.com/PaperasseAI/redact-paperasse" target="_blank" rel="noopener">redact-paperasse</a> ·
+    <a href="https://github.com/PaperasseAI/redact-paperasse-demo" target="_blank" rel="noopener">source for this page</a><br />
+    Uploads are redacted in memory and streamed straight back — never written to disk.
+    <div class="counter" id="counter"></div>
   </footer>
 </div>
 
 <script>
-  const entitiesEl = document.getElementById('entities');
-  const form = document.getElementById('redact-form');
-  const statusEl = document.getElementById('status');
-  const submitBtn = document.getElementById('submit-btn');
-  const counterEl = document.getElementById('counter');
+  const $ = (id) => document.getElementById(id);
+  const drop = $('drop'), fileInput = $('file'), go = $('go');
+  const chips = $('chips'), scanner = $('scanner'), result = $('result'), err = $('err');
+  let picked = null, lastBlob = null, lastName = 'redacted';
+
+  const fmtSize = (b) => b < 1024 ? b + ' B' : b < 1048576 ? (b / 1024).toFixed(0) + ' KB' : (b / 1048576).toFixed(1) + ' MB';
+  const extOf = (n) => (n.split('.').pop() || 'file').slice(0, 4).toUpperCase();
+
+  function showFile(f) {
+    picked = f;
+    $('drop-empty').hidden = true;
+    $('drop-filled').hidden = false;
+    drop.classList.add('has-file');
+    $('file-name').textContent = f.name;
+    $('file-size').textContent = fmtSize(f.size);
+    $('file-ext').textContent = extOf(f.name);
+    go.disabled = false;
+    err.classList.remove('on');
+    result.classList.remove('on');
+  }
+  function clearFile() {
+    picked = null; fileInput.value = '';
+    $('drop-empty').hidden = false;
+    $('drop-filled').hidden = true;
+    drop.classList.remove('has-file');
+    go.disabled = true;
+  }
+
+  fileInput.addEventListener('change', () => fileInput.files[0] && showFile(fileInput.files[0]));
+  $('clear').addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); clearFile(); });
+
+  ['dragenter', 'dragover'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((ev) =>
+    drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => {
+    const f = e.dataTransfer.files[0];
+    if (f) { const dt = new DataTransfer(); dt.items.add(f); fileInput.files = dt.files; showFile(f); }
+  });
 
   async function loadEntities() {
-    const res = await fetch('/entities');
-    const { entities } = await res.json();
-    entitiesEl.innerHTML = entities
-      .map(
-        (e) => `
-      <label>
-        <input type="checkbox" name="entity" value="${e.id}" checked />
-        ${e.label}
-      </label>`,
-      )
-      .join('');
+    const { entities } = await (await fetch('/entities')).json();
+    chips.innerHTML = entities.map((e) =>
+      `<label class="chip"><input type="checkbox" name="entity" value="${e.id}" checked /><span>${e.label}</span></label>`
+    ).join('');
   }
+  $('sel-all').addEventListener('click', () => chips.querySelectorAll('input').forEach((i) => (i.checked = true)));
+  $('sel-none').addEventListener('click', () => chips.querySelectorAll('input').forEach((i) => (i.checked = false)));
 
   async function loadStats() {
     try {
-      const res = await fetch('/stats');
-      const { count } = await res.json();
+      const { count } = await (await fetch('/stats')).json();
       if (count >= 1000) {
-        counterEl.textContent = `${count.toLocaleString()} files redacted so far`;
-        counterEl.classList.add('visible');
+        $('counter').textContent = count.toLocaleString() + ' files redacted so far';
+        $('counter').classList.add('on');
       }
-    } catch {
-      // stats endpoint is best-effort — the form works regardless
-    }
+    } catch {}
   }
 
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    statusEl.textContent = '';
-    statusEl.className = 'status';
+  const PHASES = ['Reading the page…', 'Looking for identifiers…', 'Checking them…', 'Blacking them out…'];
+  let phaseTimer = null;
+  function startScan() {
+    let i = 0;
+    $('scan-text').textContent = PHASES[0];
+    scanner.classList.add('on');
+    phaseTimer = setInterval(() => { i = (i + 1) % PHASES.length; $('scan-text').textContent = PHASES[i]; }, 1400);
+  }
+  function stopScan() { clearInterval(phaseTimer); scanner.classList.remove('on'); }
 
-    const fileInput = document.getElementById('file');
-    const file = fileInput.files[0];
-    if (!file) return;
+  function download() {
+    if (!lastBlob) return;
+    const url = URL.createObjectURL(lastBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = lastName;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+  $('dl').addEventListener('click', download);
+  $('again').addEventListener('click', () => { clearFile(); result.classList.remove('on'); });
 
-    const selected = Array.from(
-      entitiesEl.querySelectorAll('input[name="entity"]:checked'),
-    ).map((el) => el.value);
+  $('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!picked) return;
+    err.classList.remove('on'); result.classList.remove('on');
+    go.disabled = true;
+    startScan();
 
     const body = new FormData();
-    body.append('file', file);
-    body.append('entities', JSON.stringify(selected));
-    body.append('markdown', document.getElementById('markdown').checked ? 'true' : 'false');
-
-    submitBtn.disabled = true;
-    statusEl.textContent = 'Redacting…';
+    body.append('file', picked);
+    body.append('entities', JSON.stringify(
+      Array.from(chips.querySelectorAll('input:checked')).map((i) => i.value)));
+    body.append('markdown', $('markdown').checked ? 'true' : 'false');
 
     try {
       const res = await fetch('/redact', { method: 'POST', body });
       if (!res.ok) {
         const { error } = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
-        statusEl.textContent = error;
-        statusEl.className = 'status error';
+        err.textContent = error; err.classList.add('on');
         return;
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get('Content-Disposition') || '';
-      const match = disposition.match(/filename="([^"]+)"/);
-      const filename = match ? match[1] : 'redacted-output';
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      statusEl.textContent = 'Done — download started.';
-      statusEl.className = 'status ok';
+      const cd = res.headers.get('Content-Disposition') || '';
+      const m = cd.match(/filename="([^"]+)"/);
+      lastName = m ? m[1] : 'redacted-output';
+      lastBlob = await res.blob();
+      download();
+      $('result-note').textContent =
+        `${lastName} · ${fmtSize(lastBlob.size)} — your download should have started.`;
+      result.classList.add('on');
       loadStats();
-    } catch (err) {
-      statusEl.textContent = 'Something went wrong. Please try again.';
-      statusEl.className = 'status error';
+    } catch {
+      err.textContent = 'Something went wrong. Please try again.';
+      err.classList.add('on');
     } finally {
-      submitBtn.disabled = false;
+      stopScan();
+      go.disabled = false;
     }
   });
+
+  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+    document.querySelectorAll('.panel').forEach((p) => p.classList.remove('on'));
+    $('p-' + t.dataset.p).classList.add('on');
+  }));
 
   loadEntities();
   loadStats();
