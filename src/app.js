@@ -7,6 +7,11 @@ import { env } from './env.js';
 import { ENTITY_TYPES, redactUpload, SUPPORTED_MIME_TYPES } from './redact.js';
 import { rateLimit } from './rateLimit.js';
 
+// The page defaults to French, so errors do too; `?lang=en` opts out. Kept as
+// one helper rather than sprinkling ternaries, so adding a language later is
+// one edit per string instead of one per call site.
+const msg = (c, fr, en) => (c.req.query('lang') === 'en' ? en : fr);
+
 export function createApp() {
   const app = new Hono();
   app.use('*', cors());
@@ -15,7 +20,13 @@ export function createApp() {
   // deploy.sh curls this, it must stay green even if something else degrades.
   app.get('/health', (c) => c.json({ status: 'ok', service: 'redact-paperasse-demo' }));
 
-  app.get('/entities', (c) => c.json({ entities: ENTITY_TYPES }));
+  // French is the default everywhere, including here: `?lang=en` is the
+  // opt-in, so a client that forgets the parameter still gets French rather
+  // than silently falling back to English.
+  app.get('/entities', (c) => c.json({
+    entities: ENTITY_TYPES.map(({ id, label, label_en }) =>
+      ({ id, label: c.req.query('lang') === 'en' ? label_en : label })),
+  }));
 
   app.get('/stats', (c) => c.json({ count: getCount() }));
 
@@ -25,22 +36,22 @@ export function createApp() {
       c.req.header('x-real-ip') ||
       'unknown';
     if (!rateLimit(ip, env.RATE_LIMIT_PER_MIN)) {
-      return c.json({ error: 'Too many requests — try again in a minute.' }, 429);
+      return c.json({ error: msg(c, 'Trop de requêtes — réessayez dans une minute.', 'Too many requests — try again in a minute.') }, 429);
     }
 
     let formData;
     try {
       formData = await c.req.formData();
     } catch {
-      return c.json({ error: 'Expected multipart/form-data with a "file" field.' }, 400);
+      return c.json({ error: msg(c, 'Requête multipart/form-data attendue, avec un champ "file".', 'Expected multipart/form-data with a "file" field.') }, 400);
     }
 
     const file = formData.get('file');
     if (!(file instanceof File)) {
-      return c.json({ error: 'Missing "file" field.' }, 400);
+      return c.json({ error: msg(c, 'Champ "file" manquant.', 'Missing "file" field.') }, 400);
     }
     if (file.size === 0) {
-      return c.json({ error: 'Uploaded file is empty.' }, 400);
+      return c.json({ error: msg(c, 'Le fichier envoyé est vide.', 'Uploaded file is empty.') }, 400);
     }
     if (file.size > env.MAX_UPLOAD_BYTES) {
       return c.json(
@@ -61,7 +72,7 @@ export function createApp() {
       try {
         entities = JSON.parse(entitiesRaw);
       } catch {
-        return c.json({ error: '"entities" must be a JSON array of entity type IDs.' }, 400);
+        return c.json({ error: msg(c, '"entities" doit être un tableau JSON d\'identifiants de types.', '"entities" must be a JSON array of entity type IDs.') }, 400);
       }
     }
 
@@ -87,7 +98,7 @@ export function createApp() {
       });
     } catch (err) {
       console.error('redaction failed:', err);
-      return c.json({ error: 'Redaction failed. Please try a different file.' }, 500);
+      return c.json({ error: msg(c, 'Le caviardage a échoué. Essayez un autre fichier.', 'Redaction failed. Please try a different file.') }, 500);
     }
   });
 

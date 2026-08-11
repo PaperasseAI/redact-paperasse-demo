@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>redact-paperasse — strip PII from documents</title>
-<meta name="description" content="Drop in text, an image, or a PDF and get a redacted copy back. Open source, runs in-process, nothing stored." />
+<title>redact-paperasse — effacez les données personnelles de vos documents</title>
+<meta name="description" content="Déposez un texte, une image ou un PDF et récupérez une copie caviardée. Open source, exécuté en local, rien n'est conservé." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=Spectral:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet" />
@@ -200,24 +200,37 @@
      background and dashed border fragment into stray boxes down the left
      edge. Appended as its own rule so it can't silently fail to apply. */
   .drop { display: block; }
+  /* ---- language switch ---- */
+  .langbar { display: flex; justify-content: flex-end; margin: -12px 0 12px; }
+  .lang { display: inline-flex; border: 1px solid var(--border); border-radius: 999px; overflow: hidden; background: var(--surface); }
+  .lang button { appearance: none; border: 0; background: transparent; cursor: pointer; font-family: var(--ui);
+    font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); padding: 5px 12px; }
+  .lang button[aria-pressed="true"] { background: var(--primary); color: #fff; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div class="tricolor"><span></span><span></span><span></span></div>
 
+  <div class="langbar">
+    <div class="lang" role="group" aria-label="Langue / Language">
+      <button type="button" data-lang="fr" aria-pressed="true">FR</button>
+      <button type="button" data-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+
   <header>
-    <h1>Strip personal data out of documents</h1>
+    <h1 data-i18n="h1">Effacez les données personnelles de vos documents</h1>
     <p>
-      Drop in plain text, a photo, or a PDF. Pick what counts as sensitive, and get
-      a redacted copy back — black boxes burned into the pixels, not a highlight
-      layer someone can peel off.
+      <span data-i18n="lede">Déposez un texte brut, une photo ou un PDF. Choisissez ce qui
+      est sensible, et récupérez une copie caviardée — des rectangles noirs gravés dans les
+      pixels, pas un calque qu'on peut retirer.</span>
     </p>
     <div class="badges">
-      <span class="badge green">Nothing stored</span>
-      <span class="badge">Redacted in memory, in one request</span>
-      <span class="badge">Open source · MIT</span>
-      <span class="badge">Free, no account</span>
+      <span class="badge green" data-i18n="b1">Rien n'est conservé</span>
+      <span class="badge" data-i18n="b2">Caviardé en mémoire, en une seule requête</span>
+      <span class="badge" data-i18n="b3">Open source · MIT</span>
+      <span class="badge" data-i18n="b4">Gratuit, sans compte</span>
     </div>
   </header>
 
@@ -230,39 +243,39 @@
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
             <path d="M7 10l5-5 5 5" /><path d="M12 5v13" />
           </svg>
-          <div class="drop-title">Drop a file here, or click to choose</div>
-          <div class="drop-sub">Plain text, PNG, JPEG, or PDF · up to 10&nbsp;MB</div>
+          <div class="drop-title" data-i18n="drop">Déposez un fichier ici, ou cliquez pour le choisir</div>
+          <div class="drop-sub" data-i18n="dropsub">Texte brut, PNG, JPEG ou PDF · jusqu'à 10&nbsp;Mo</div>
         </div>
         <div class="filerow" id="drop-filled" hidden>
-          <div class="filepill" id="file-ext">FILE</div>
+          <div class="filepill" id="file-ext">FICHIER</div>
           <div class="filemeta">
             <div class="filename" id="file-name"></div>
             <div class="filesize" id="file-size"></div>
           </div>
-          <button type="button" class="clear" id="clear" title="Remove file" aria-label="Remove file">&times;</button>
+          <button type="button" class="clear" id="clear" data-i18n-title="rm" title="Retirer le fichier" aria-label="Retirer le fichier">&times;</button>
         </div>
       </label>
 
-      <div class="section-label">What should be redacted</div>
+      <div class="section-label" data-i18n="what">Ce qu'il faut caviarder</div>
       <div class="chips" id="chips"></div>
       <div class="chip-actions">
-        <button type="button" class="linkbtn" id="sel-all">Select all</button> ·
-        <button type="button" class="linkbtn" id="sel-none">Clear</button>
+        <button type="button" class="linkbtn" id="sel-all" data-i18n="selall">Tout sélectionner</button> ·
+        <button type="button" class="linkbtn" id="sel-none" data-i18n="selnone">Tout décocher</button>
       </div>
 
-      <div class="section-label">Output</div>
+      <div class="section-label" data-i18n="out">Sortie</div>
       <label class="toggle-row">
         <input type="checkbox" id="markdown" />
         <span class="track"></span>
         <span class="toggle-copy">
-          <strong>Return markdown instead of the original format</strong>
-          <em>For an image or PDF this reads the page and hands back redacted text —
-          no pixel step, and cheaper. Leave it off to get back the same kind of file
-          you put in, with the sensitive parts blacked out.</em>
+          <strong data-i18n="mdt">Renvoyer du markdown au lieu du format d'origine</strong>
+          <em data-i18n="mdd">Pour une image ou un PDF, cette option lit la page et renvoie
+          le texte caviardé — sans étape pixel, et moins coûteux. Laissez-la désactivée pour
+          récupérer le même type de fichier que celui déposé, parties sensibles masquées.</em>
         </span>
       </label>
 
-      <button type="submit" class="primary" id="go" disabled>Redact file</button>
+      <button type="submit" class="primary" id="go" data-i18n="go" disabled>Caviarder le fichier</button>
       <div class="err" id="err"></div>
     </form>
 
@@ -273,31 +286,32 @@
         </div>
         <div class="scan-beam"></div>
       </div>
-      <div class="scan-status"><span class="dot"></span><span id="scan-text">Reading the page…</span></div>
+      <div class="scan-status"><span class="dot"></span><span id="scan-text">Lecture de la page…</span></div>
     </div>
 
     <div class="result" id="result">
-      <h3>Redacted</h3>
-      <p id="result-note">Your download should have started automatically.</p>
+      <h3 data-i18n="done">Caviardé</h3>
+      <p id="result-note">Votre téléchargement a dû démarrer automatiquement.</p>
       <div class="row">
-        <button type="button" class="btn-sm solid" id="dl">Download again</button>
-        <button type="button" class="btn-sm ghost" id="again">Redact another file</button>
+        <button type="button" class="btn-sm solid" id="dl" data-i18n="dl">Télécharger à nouveau</button>
+        <button type="button" class="btn-sm ghost" id="again" data-i18n="again">Caviarder un autre fichier</button>
       </div>
     </div>
   </div>
 
   <section class="code-section">
-    <h2>Use it in your own code</h2>
+    <h2 data-i18n="codeh">Utilisez-le dans votre propre code</h2>
     <p>
-      The demo above is a thin wrapper around the same library you can install. One
-      Rust core, native bindings for each language — no REST hop, no server to run.
+      <span data-i18n="codep">La démo ci-dessus est une simple surcouche de la bibliothèque
+      que vous pouvez installer. Un cœur en Rust, des liaisons natives pour chaque langage —
+      pas d'appel REST, aucun serveur à faire tourner.</span>
     </p>
     <div class="tabs" role="tablist">
       <button class="tab" role="tab" data-p="cli" aria-selected="true">CLI</button>
       <button class="tab" role="tab" data-p="node" aria-selected="false">Node.js</button>
       <button class="tab" role="tab" data-p="py" aria-selected="false">Python</button>
       <button class="tab" role="tab" data-p="rust" aria-selected="false">Rust</button>
-      <button class="tab" role="tab" data-p="wasm" aria-selected="false">Browser</button>
+      <button class="tab" role="tab" data-p="wasm" aria-selected="false" data-i18n="tabw">Navigateur</button>
     </div>
 
     <div class="panel on" id="p-cli"><pre><code><span class="tok-c"># install</span>
@@ -381,20 +395,82 @@ std::fs::<span class="tok-f">write</span>(<span class="tok-s">"redacted.jpg"</sp
 <span class="tok-k">await</span> <span class="tok-f">init</span>();
 
 <span class="tok-k">const</span> clean = <span class="tok-k">await</span> <span class="tok-f">redactText</span>(raw, <span class="tok-k">false</span>, [<span class="tok-s">'EMAIL_ADDRESS'</span>], <span class="tok-k">null</span>);</code></pre>
-      <p class="note">No <code>redactPdf</code> in the browser build: the PDF-to-raster
-      step doesn't exist for wasm32 upstream. Text redaction is the part that
-      genuinely benefits from running client-side anyway.</p>
+      <p class="note" data-i18n-html="wasmn">Pas de <code>redactPdf</code> dans la version
+      navigateur : l'étape PDF → image n'existe pas pour wasm32 en amont. De toute façon,
+      c'est le caviardage de texte qui gagne vraiment à tourner côté client.</p>
     </div>
   </section>
 
   <footer>
-    Built on <a href="https://github.com/PaperasseAI/redact-paperasse" target="_blank" rel="noopener">redact-paperasse</a> ·
-    <a href="https://github.com/PaperasseAI/redact-paperasse-demo" target="_blank" rel="noopener">source for this page</a><br />
-    Uploads are redacted in memory and streamed straight back — never written to disk.
+    <span data-i18n="built">Propulsé par</span> <a href="https://github.com/PaperasseAI/redact-paperasse" target="_blank" rel="noopener">redact-paperasse</a> ·
+    <a href="https://github.com/PaperasseAI/redact-paperasse-demo" target="_blank" rel="noopener"data-i18n="src">code source de cette page</a><br />
+    <span data-i18n="foot">Les fichiers déposés sont caviardés en mémoire et renvoyés
+    directement — jamais écrits sur disque.</span>
     <div class="counter" id="counter"></div>
   </footer>
 </div>
 
+<script>
+// French is the default: it is what's in the markup, so the page reads French
+// with JavaScript off and to anything crawling it. English is an overlay
+// applied only on request -- the reverse (English markup swapped to French on
+// load) would flash English first and leave non-JS visitors on the wrong one.
+const EN = {
+  h1: 'Strip personal data out of documents',
+  lede: "Drop in plain text, a photo, or a PDF. Pick what counts as sensitive, and get a redacted copy back — black boxes burned into the pixels, not a highlight layer someone can peel off.",
+  b1: 'Nothing stored', b2: 'Redacted in memory, in one request',
+  b3: 'Open source · MIT', b4: 'Free, no account',
+  drop: 'Drop a file here, or click to choose',
+  dropsub: 'Plain text, PNG, JPEG, or PDF · up to 10\u00a0MB',
+  rm: 'Remove file',
+  what: 'What should be redacted', selall: 'Select all', selnone: 'Clear',
+  out: 'Output',
+  mdt: 'Return markdown instead of the original format',
+  mdd: 'For an image or PDF this reads the page and hands back redacted text — no pixel step, and cheaper. Leave it off to get back the same kind of file you put in, with the sensitive parts blacked out.',
+  go: 'Redact file', done: 'Redacted',
+  dl: 'Download again', again: 'Redact another file',
+  codeh: 'Use it in your own code',
+  codep: 'The demo above is a thin wrapper around the same library you can install. One Rust core, native bindings for each language — no REST hop, no server to run.',
+  tabw: 'Browser',
+  wasmn: "No <code>redactPdf</code> in the browser build: the PDF-to-raster step doesn't exist for wasm32 upstream. Text redaction is the part that genuinely benefits from running client-side anyway.",
+  built: 'Built on', src: 'source for this page',
+  foot: 'Uploads are redacted in memory and streamed straight back — never written to disk.',
+};
+// Captured before any swap, so switching back to French doesn't depend on a
+// second dictionary drifting out of sync with the markup.
+const FR = {};
+for (const el of document.querySelectorAll('[data-i18n]')) FR[el.dataset.i18n] = el.textContent;
+for (const el of document.querySelectorAll('[data-i18n-html]')) FR[el.dataset.i18nHtml] = el.innerHTML;
+for (const el of document.querySelectorAll('[data-i18n-title]')) FR[el.dataset.i18nTitle] = el.title;
+
+let LANG = 'fr';
+function applyLang(lang) {
+  LANG = lang;
+  const d = lang === 'en' ? EN : FR;
+  document.documentElement.lang = lang;
+  for (const el of document.querySelectorAll('[data-i18n]')) {
+    const v = d[el.dataset.i18n]; if (v != null) el.textContent = v;
+  }
+  for (const el of document.querySelectorAll('[data-i18n-html]')) {
+    const v = d[el.dataset.i18nHtml]; if (v != null) el.innerHTML = v;
+  }
+  for (const el of document.querySelectorAll('[data-i18n-title]')) {
+    const v = d[el.dataset.i18nTitle]; if (v != null) { el.title = v; el.setAttribute('aria-label', v); }
+  }
+  for (const b of document.querySelectorAll('.lang button')) {
+    b.setAttribute('aria-pressed', String(b.dataset.lang === lang));
+  }
+  try { localStorage.setItem('lang', lang); } catch {}
+  if (typeof loadEntities === 'function') loadEntities();
+}
+for (const b of document.querySelectorAll('.lang button')) {
+  b.addEventListener('click', () => applyLang(b.dataset.lang));
+}
+// Only an explicit past choice overrides French. Deliberately not sniffing
+// navigator.language: this is a French product and the ask was French first,
+// so an en-US browser visiting should still land on French.
+try { const saved = localStorage.getItem('lang'); if (saved === 'en') applyLang('en'); } catch {}
+</script>
 <script>
   const $ = (id) => document.getElementById(id);
   const drop = $('drop'), fileInput = $('file'), go = $('go');
@@ -437,7 +513,7 @@ std::fs::<span class="tok-f">write</span>(<span class="tok-s">"redacted.jpg"</sp
   });
 
   async function loadEntities() {
-    const { entities } = await (await fetch('/entities')).json();
+    const { entities } = await (await fetch('/entities?lang=' + LANG)).json();
     chips.innerHTML = entities.map((e) =>
       `<label class="chip"><input type="checkbox" name="entity" value="${e.id}" checked /><span>${e.label}</span></label>`
     ).join('');
@@ -449,19 +525,20 @@ std::fs::<span class="tok-f">write</span>(<span class="tok-s">"redacted.jpg"</sp
     try {
       const { count } = await (await fetch('/stats')).json();
       if (count >= 1000) {
-        $('counter').textContent = count.toLocaleString() + ' files redacted so far';
+        $('counter').textContent = count.toLocaleString(LANG) + (LANG === 'fr' ? ' fichiers caviardés à ce jour' : ' files redacted so far');
         $('counter').classList.add('on');
       }
     } catch {}
   }
 
-  const PHASES = ['Reading the page…', 'Looking for identifiers…', 'Checking them…', 'Blacking them out…'];
+  const PHASES = { fr: ['Lecture de la page…', 'Recherche des identifiants…', 'Vérification…', 'Masquage…'],
+                   en: ['Reading the page…', 'Looking for identifiers…', 'Checking them…', 'Blacking them out…'] };
   let phaseTimer = null;
   function startScan() {
     let i = 0;
-    $('scan-text').textContent = PHASES[0];
+    $('scan-text').textContent = PHASES[LANG][0];
     scanner.classList.add('on');
-    phaseTimer = setInterval(() => { i = (i + 1) % PHASES.length; $('scan-text').textContent = PHASES[i]; }, 1400);
+    phaseTimer = setInterval(() => { const ph = PHASES[LANG]; i = (i + 1) % ph.length; $('scan-text').textContent = ph[i]; }, 1400);
   }
   function stopScan() { clearInterval(phaseTimer); scanner.classList.remove('on'); }
 
@@ -490,23 +567,23 @@ std::fs::<span class="tok-f">write</span>(<span class="tok-s">"redacted.jpg"</sp
     body.append('markdown', $('markdown').checked ? 'true' : 'false');
 
     try {
-      const res = await fetch('/redact', { method: 'POST', body });
+      const res = await fetch('/redact?lang=' + LANG, { method: 'POST', body });
       if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
+        const { error } = await res.json().catch(() => ({ error: (LANG === 'fr' ? `Échec de la requête (${res.status})` : `Request failed (${res.status})`) }));
         err.textContent = error; err.classList.add('on');
         return;
       }
       const cd = res.headers.get('Content-Disposition') || '';
       const m = cd.match(/filename="([^"]+)"/);
-      lastName = m ? m[1] : 'redacted-output';
+      lastName = m ? m[1] : (LANG === 'fr' ? 'document-caviarde' : 'redacted-output');
       lastBlob = await res.blob();
       download();
       $('result-note').textContent =
-        `${lastName} · ${fmtSize(lastBlob.size)} — your download should have started.`;
+        `${lastName} · ${fmtSize(lastBlob.size)} — ` + (LANG === 'fr' ? 'votre téléchargement a dû démarrer.' : 'your download should have started.');
       result.classList.add('on');
       loadStats();
     } catch {
-      err.textContent = 'Something went wrong. Please try again.';
+      err.textContent = LANG === 'fr' ? 'Une erreur est survenue. Veuillez réessayer.' : 'Something went wrong. Please try again.';
       err.classList.add('on');
     } finally {
       stopScan();

@@ -11,12 +11,12 @@ import {
 // library doesn't expose a "list supported entities" call today, so this
 // is hand-kept in sync with that registry.
 export const ENTITY_TYPES = [
-  { id: 'EMAIL_ADDRESS', label: 'Email address' },
-  { id: 'PHONE_NUMBER', label: 'Phone number' },
-  { id: 'CREDIT_CARD', label: 'Credit card number' },
-  { id: 'IBAN_CODE', label: 'IBAN' },
-  { id: 'US_SSN', label: 'US Social Security Number' },
-  { id: 'FR_NIR', label: 'French social security number (NIR)' },
+  { id: 'EMAIL_ADDRESS', label: 'Adresse e-mail', label_en: 'Email address' },
+  { id: 'PHONE_NUMBER', label: 'Numéro de téléphone', label_en: 'Phone number' },
+  { id: 'CREDIT_CARD', label: 'Numéro de carte bancaire', label_en: 'Credit card number' },
+  { id: 'IBAN_CODE', label: 'IBAN', label_en: 'IBAN' },
+  { id: 'US_SSN', label: 'Numéro de sécurité sociale américain', label_en: 'US Social Security Number' },
+  { id: 'FR_NIR', label: 'Numéro de sécurité sociale (NIR)', label_en: 'French social security number (NIR)' },
 ];
 
 export const SUPPORTED_MIME_TYPES = new Set([
