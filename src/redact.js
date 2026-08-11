@@ -17,6 +17,7 @@ export const ENTITY_TYPES = [
   { id: 'IBAN_CODE', label: 'IBAN', label_en: 'IBAN' },
   { id: 'US_SSN', label: 'Numéro de sécurité sociale américain', label_en: 'US Social Security Number' },
   { id: 'FR_NIR', label: 'Numéro de sécurité sociale (NIR)', label_en: 'French social security number (NIR)' },
+  { id: 'EU_VAT', label: 'Numéro de TVA intracommunautaire', label_en: 'EU VAT number' },
 ];
 
 export const SUPPORTED_MIME_TYPES = new Set([
