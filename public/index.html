@@ -206,6 +206,17 @@
   .lang button { appearance: none; border: 0; background: transparent; cursor: pointer; font-family: var(--ui);
     font-size: 12px; font-weight: 700; letter-spacing: .04em; color: var(--muted); padding: 5px 12px; }
   .lang button[aria-pressed="true"] { background: var(--primary); color: #fff; }
+  /* While the scan runs the form steps out of the way entirely, rather than
+     sitting greyed-out under a spinner. On a phone the form is most of the
+     viewport, so leaving it there pushed the scanner off-screen -- people
+     were watching a blank area while the work happened below the fold. It
+     collapses to zero height so the card shrinks around the scanner, and
+     comes back when the scan ends. */
+  #form { transition: opacity .18s ease; }
+  #form.busy {
+    opacity: 0; pointer-events: none;
+    height: 0; overflow: hidden; margin: 0; padding: 0;
+  }
 </style>
 </head>
 <body>
@@ -515,7 +526,7 @@ try { const saved = localStorage.getItem('lang'); if (saved === 'en') applyLang(
   async function loadEntities() {
     const { entities } = await (await fetch('/entities?lang=' + LANG)).json();
     chips.innerHTML = entities.map((e) =>
-      `<label class="chip"><input type="checkbox" name="entity" value="${e.id}" checked /><span>${e.label}</span></label>`
+      `<label class="chip"><input type="checkbox" name="entity" value="${e.id}"${e.default_on === false ? '' : ' checked'} /><span>${e.label}</span></label>`
     ).join('');
   }
   $('sel-all').addEventListener('click', () => chips.querySelectorAll('input').forEach((i) => (i.checked = true)));
@@ -542,6 +553,14 @@ try { const saved = localStorage.getItem('lang'); if (saved === 'en') applyLang(
   }
   function stopScan() { clearInterval(phaseTimer); scanner.classList.remove('on'); }
 
+  // Paired with startScan/stopScan rather than folded into them, so the form
+  // is guaranteed to come back: the restore sits in the submit handler's
+  // `finally`, which runs on success, on a rejected upload and on a thrown
+  // network error alike. Hiding a form you might fail to restore is how you
+  // strand someone on a dead page.
+  function hideForm() { $('form').classList.add('busy'); }
+  function showForm() { $('form').classList.remove('busy'); }
+
   function download() {
     if (!lastBlob) return;
     const url = URL.createObjectURL(lastBlob);
@@ -558,6 +577,7 @@ try { const saved = localStorage.getItem('lang'); if (saved === 'en') applyLang(
     if (!picked) return;
     err.classList.remove('on'); result.classList.remove('on');
     go.disabled = true;
+    hideForm();
     startScan();
 
     const body = new FormData();
@@ -587,6 +607,7 @@ try { const saved = localStorage.getItem('lang'); if (saved === 'en') applyLang(
       err.classList.add('on');
     } finally {
       stopScan();
+      showForm();
       go.disabled = false;
     }
   });

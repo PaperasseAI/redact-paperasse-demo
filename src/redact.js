@@ -18,6 +18,12 @@ export const ENTITY_TYPES = [
   { id: 'US_SSN', label: 'Numéro de sécurité sociale américain', label_en: 'US Social Security Number' },
   { id: 'FR_NIR', label: 'Numéro de sécurité sociale (NIR)', label_en: 'French social security number (NIR)' },
   { id: 'EU_VAT', label: 'Numéro de TVA intracommunautaire', label_en: 'EU VAT number' },
+  // Off by default: a SIREN/SIRET is public data and French invoices are
+  // legally required to carry it, so redacting one can invalidate the
+  // document. Real cases exist (an entreprise individuelle's SIRET is tied
+  // to a person), but they are the minority, so this is chosen not assumed.
+  { id: 'FR_SIRET', label: 'SIRET (entreprise)', label_en: 'SIRET (company)', default_on: false },
+  { id: 'FR_SIREN', label: 'SIREN (entreprise)', label_en: 'SIREN (company)', default_on: false },
 ];
 
 export const SUPPORTED_MIME_TYPES = new Set([

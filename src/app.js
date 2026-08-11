@@ -24,8 +24,11 @@ export function createApp() {
   // opt-in, so a client that forgets the parameter still gets French rather
   // than silently falling back to English.
   app.get('/entities', (c) => c.json({
-    entities: ENTITY_TYPES.map(({ id, label, label_en }) =>
-      ({ id, label: c.req.query('lang') === 'en' ? label_en : label })),
+    entities: ENTITY_TYPES.map(({ id, label, label_en, default_on }) => ({
+      id,
+      label: c.req.query('lang') === 'en' ? label_en : label,
+      default_on: default_on !== false,
+    })),
   }));
 
   app.get('/stats', (c) => c.json({ count: getCount() }));
