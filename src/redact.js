@@ -24,7 +24,18 @@ export const ENTITY_TYPES = [
   // to a person), but they are the minority, so this is chosen not assumed.
   { id: 'FR_SIRET', label: 'SIRET (entreprise)', label_en: 'SIRET (company)', default_on: false },
   { id: 'FR_SIREN', label: 'SIREN (entreprise)', label_en: 'SIREN (company)', default_on: false },
+  // NER-backed (Presidio, Tier B): only offered when PRESIDIO_ANALYZER_URL
+  // is configured -- the chip appearing IS the feature detection. Beta and
+  // off by default: NER is probabilistic where everything above is
+  // checksum-anchored, and the fail-closed engine errors the whole request
+  // if the analyzer is down, which an unticked-by-default chip keeps from
+  // breaking the common path.
+  { id: 'PERSON', label: 'Noms de personnes (beta)', label_en: 'People\u2019s names (beta)', default_on: false, ner: true },
+  { id: 'LOCATION', label: 'Adresses et lieux (beta)', label_en: 'Addresses and places (beta)', default_on: false, ner: true },
 ];
+
+/** The entity ids that require the Presidio pass rather than Tier A. */
+const NER_IDS = new Set(ENTITY_TYPES.filter((e) => e.ner).map((e) => e.id));
 
 export const SUPPORTED_MIME_TYPES = new Set([
   'text/plain',
@@ -49,8 +60,26 @@ export const SUPPORTED_MIME_TYPES = new Set([
  * you actually want when the destination is an LLM rather than a human
  * looking at a document.
  */
-export async function redactUpload(bytes, mimeType, entities, markdown = false) {
-  const options = entities && entities.length > 0 ? { entities } : undefined;
+export async function redactUpload(bytes, mimeType, entities, markdown = false, opts = {}) {
+  const { analyzerUrl, language = 'fr' } = opts;
+  const wantsNer = (entities ?? []).some((e) => NER_IDS.has(e));
+  if (wantsNer && !analyzerUrl) {
+    // The chips shouldn't exist without the env var, but a hand-crafted
+    // request can still ask. Refusing beats silently returning a document
+    // with the names still on it.
+    throw new Error('names/addresses redaction requested but no analyzer is configured');
+  }
+  const options = {
+    ...(entities && entities.length > 0 ? { entities } : {}),
+    ...(wantsNer ? { tierB: { analyzerUrl, language } } : {}),
+  };
+  if (Object.keys(options).length === 0) {
+    return redactDispatch(bytes, mimeType, undefined, markdown);
+  }
+  return redactDispatch(bytes, mimeType, options, markdown);
+}
+
+async function redactDispatch(bytes, mimeType, options, markdown) {
 
   if (markdown) {
     let text;

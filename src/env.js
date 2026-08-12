@@ -13,6 +13,11 @@ if (process.loadEnvFile) {
 }
 
 const EnvSchema = z.object({
+  // When set, the demo offers NER-backed chips (names, addresses) and sends
+  // extracted text to this presidio-analyzer. Loopback on the same box in
+  // production -- document text must never cross a network boundary. Unset,
+  // the NER chips simply don't exist and nothing pays a REST hop.
+  PRESIDIO_ANALYZER_URL: z.string().url().optional(),
   PORT: z.coerce.number().int().positive().default(8790),
   MAX_UPLOAD_BYTES: z.coerce
     .number()

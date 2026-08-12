@@ -24,11 +24,15 @@ export function createApp() {
   // opt-in, so a client that forgets the parameter still gets French rather
   // than silently falling back to English.
   app.get('/entities', (c) => c.json({
-    entities: ENTITY_TYPES.map(({ id, label, label_en, default_on }) => ({
-      id,
-      label: c.req.query('lang') === 'en' ? label_en : label,
-      default_on: default_on !== false,
-    })),
+    entities: ENTITY_TYPES
+      // NER chips only exist when an analyzer is configured -- absence of
+      // the chip is the honest signal, not a chip that errors when used.
+      .filter((e) => !e.ner || env.PRESIDIO_ANALYZER_URL)
+      .map(({ id, label, label_en, default_on }) => ({
+        id,
+        label: c.req.query('lang') === 'en' ? label_en : label,
+        default_on: default_on !== false,
+      })),
   }));
 
   app.get('/stats', (c) => c.json({ count: getCount() }));
@@ -84,7 +88,14 @@ export function createApp() {
 
     try {
       const result = await withConcurrencyLimit(env.MAX_CONCURRENT_REDACTIONS, () =>
-        redactUpload(bytes, file.type, entities, markdown),
+        redactUpload(bytes, file.type, entities, markdown, {
+          analyzerUrl: env.PRESIDIO_ANALYZER_URL,
+          // The UI language doubles as the NER language: this demo is
+          // French-first and the documents people bring it are French; an
+          // English-UI visitor analyzing with the English model is the
+          // right pairing for the other case.
+          language: c.req.query('lang') === 'en' ? 'en' : 'fr',
+        }),
       );
       incrementCount();
       let safeName = (file.name || 'output').replace(/[^\w.\-]/g, '_');
